@@ -1,3 +1,3 @@
-module github.com/rs/xid
+module github.com/sujit-baniya/xid
 
-go 1.12
+go 1.15
