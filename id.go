@@ -354,7 +354,7 @@ func (f ID) MarshalJSON() ([]byte, error) {
 	return buff, nil
 }
 
-// UnmarshalJSON converts a json byte array of a snowflake ID into an ID type.
+// UnmarshalJSON converts a json byte array of a snowflake ID into an ID type .
 func (f *ID) UnmarshalJSON(b []byte) error {
 	if len(b) < 3 || b[0] != '"' || b[len(b)-1] != '"' {
 		return JSONSyntaxError{b}
