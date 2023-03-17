@@ -1,3 +1,3 @@
-module github.com/sujit-baniya/xid
+module github.com/oarkflow/xid
 
 go 1.19
