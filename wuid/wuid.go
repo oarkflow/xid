@@ -2,6 +2,7 @@ package wuid
 
 import (
 	"fmt"
+	"runtime"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -60,11 +61,10 @@ func GenerateFastID() uint64 {
 }
 
 func GenerateWithTimestamp() uint64 {
-	current := uint64(time.Now().UnixMilli() - epoch)
-	current &= (1 << timestampBits) - 1
 	for {
 		old := atomic.LoadUint64(&uniqueCounter)
 		oldTimestamp := old >> shift
+		current := uint64(time.Now().UnixMilli()-epoch) & ((1 << timestampBits) - 1)
 		var candidate uint64
 		if current > oldTimestamp {
 			candidate = (current << shift) | (machineID << sequenceBits)
@@ -74,6 +74,7 @@ func GenerateWithTimestamp() uint64 {
 		if atomic.CompareAndSwapUint64(&uniqueCounter, old, candidate) {
 			return candidate
 		}
+		runtime.Gosched()
 	}
 }
 
