@@ -1,4 +1,4 @@
-package main
+package wuid
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 
 func BenchmarkCustomGenerateID(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = New().String()
+		_ = New()
 	}
 }
 

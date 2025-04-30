@@ -1,4 +1,4 @@
-package main
+package wuid
 
 import (
 	"fmt"
@@ -54,40 +54,27 @@ func (id ID) Uint64() uint64 {
 	return uint64(id)
 }
 
-func GenerateID() uint64 {
-	for {
-		ts := time.Now().UnixMilli()
-		last := atomic.LoadInt64(&lastTimestamp)
-		if ts > last {
-			if atomic.CompareAndSwapInt64(&lastTimestamp, last, ts) {
-				atomic.StoreUint64(&sequence, 0)
-				return (uint64(ts-epoch) << shift) | (machineID << sequenceBits)
-			}
-			continue
-		}
-		if ts == last {
-			seq := atomic.AddUint64(&sequence, 1) - 1
-			if seq > maxSequence {
-				ts = tilNextMillis(last)
-				if atomic.CompareAndSwapInt64(&lastTimestamp, last, ts) {
-					atomic.StoreUint64(&sequence, 0)
-					return (uint64(ts-epoch) << shift) | (machineID << sequenceBits)
-				}
-				continue
-			}
-			return (uint64(ts-epoch) << shift) | (machineID << sequenceBits) | (seq & maxSequence)
-		}
-		ts = tilNextMillis(last)
-		if atomic.CompareAndSwapInt64(&lastTimestamp, last, ts) {
-			atomic.StoreUint64(&sequence, 0)
-			return (uint64(ts-epoch) << shift) | (machineID << sequenceBits)
-		}
-	}
-}
-
 func GenerateFastID() uint64 {
 	newID := atomic.AddUint64(&uniqueCounter, 1)
 	return newID
+}
+
+func GenerateWithTimestamp() uint64 {
+	current := uint64(time.Now().UnixMilli() - epoch)
+	current &= (1 << timestampBits) - 1
+	for {
+		old := atomic.LoadUint64(&uniqueCounter)
+		oldTimestamp := old >> shift
+		var candidate uint64
+		if current > oldTimestamp {
+			candidate = (current << shift) | (machineID << sequenceBits)
+		} else {
+			candidate = old + 1
+		}
+		if atomic.CompareAndSwapUint64(&uniqueCounter, old, candidate) {
+			return candidate
+		}
+	}
 }
 
 func u64ToString(n uint64) string {
