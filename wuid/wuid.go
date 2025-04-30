@@ -1,8 +1,6 @@
 package wuid
 
 import (
-	"fmt"
-	"runtime"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -20,21 +18,16 @@ const (
 var (
 	machineID     uint64 = 1
 	uniqueCounter uint64
-	lastTimestamp int64
-	sequence      uint64
+	timestampBase uint64
+	seqCounter    uint64
 )
 
 func init() {
 	now := time.Now().UnixMilli()
 	uniqueCounter = ((uint64(now - epoch)) << shift) | (machineID << sequenceBits)
-}
-
-func tilNextMillis(t int64) int64 {
-	ts := time.Now().UnixMilli()
-	for ts <= t {
-		ts = time.Now().UnixMilli()
-	}
-	return ts
+	base := (uint64(now-epoch) << shift) | (machineID << sequenceBits)
+	atomic.StoreUint64(&timestampBase, base)
+	atomic.StoreUint64(&seqCounter, 0)
 }
 
 type ID uint64
@@ -56,28 +49,23 @@ func (id ID) Uint64() uint64 {
 }
 
 func GenerateFastID() uint64 {
-	newID := atomic.AddUint64(&uniqueCounter, 1)
-	return newID
+	return atomic.AddUint64(&uniqueCounter, 1)
 }
 
 func GenerateWithTimestamp() uint64 {
-	for {
-		old := atomic.LoadUint64(&uniqueCounter)
-		oldTimestamp := old >> shift
-		current := uint64(time.Now().UnixMilli()-epoch) & ((1 << timestampBits) - 1)
-		var candidate uint64
-		if current > oldTimestamp {
-			candidate = (current << shift) | (machineID << sequenceBits)
-		} else {
-			candidate = old + 1
-		}
-		if atomic.CompareAndSwapUint64(&uniqueCounter, old, candidate) {
-			return candidate
-		}
-		runtime.Gosched()
+	now := uint64(time.Now().UnixMilli() - epoch)
+	base := atomic.LoadUint64(&timestampBase)
+	if now > (base >> shift) {
+		newBase := (now << shift) | (machineID << sequenceBits)
+		atomic.StoreUint64(&timestampBase, newBase)
+		base = newBase
 	}
+	seq := atomic.AddUint64(&seqCounter, 1) & maxSequence
+	return (base & ^maxSequence) | seq
 }
 
+//go:inline
+//go:nosplit
 func u64ToString(n uint64) string {
 	var buf [20]byte
 	i := len(buf)
@@ -89,10 +77,11 @@ func u64ToString(n uint64) string {
 			break
 		}
 	}
-	return *(*string)(unsafe.Pointer(&struct {
+	sh := struct {
 		Data *byte
 		Len  int
-	}{&buf[i], len(buf) - i}))
+	}{&buf[i], len(buf) - i}
+	return *(*string)(unsafe.Pointer(&sh))
 }
 
 func GenerateIDInt64() int64 {
@@ -101,10 +90,4 @@ func GenerateIDInt64() int64 {
 
 func GenerateIDString() string {
 	return u64ToString(GenerateFastID())
-}
-
-func main() {
-	for i := 0; i < 10000; i++ {
-		fmt.Printf("FastID %d: %s\n", i, GenerateIDString())
-	}
 }
