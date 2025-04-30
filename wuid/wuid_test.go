@@ -12,6 +12,12 @@ func BenchmarkNew(b *testing.B) {
 	}
 }
 
+func BenchmarkNewInt64(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = New().Int64()
+	}
+}
+
 func BenchmarkGenerateIDString(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = GenerateIDString()

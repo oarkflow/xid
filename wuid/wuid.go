@@ -1,6 +1,9 @@
 package wuid
 
 import (
+	"crypto/rand"
+	"encoding/binary"
+	"log"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -8,31 +11,43 @@ import (
 
 const (
 	epoch         int64  = 1672531200000
-	timestampBits uint8  = 41
 	machineIDBits uint8  = 10
 	sequenceBits  uint8  = 12
 	maxSequence   uint64 = (1 << sequenceBits) - 1
-	shift         uint8  = machineIDBits + sequenceBits
+	shift                = machineIDBits + sequenceBits
 )
 
 var (
-	machineID     uint64 = 1
+	machineID     uint64
 	uniqueCounter uint64
 	timestampBase uint64
 	seqCounter    uint64
 )
 
 func init() {
+	machineID = generateRandomMachineID()
 	now := time.Now().UnixMilli()
-	uniqueCounter = ((uint64(now - epoch)) << shift) | (machineID << sequenceBits)
-	base := (uint64(now-epoch) << shift) | (machineID << sequenceBits)
+	uniqueCounter = (uint64(now-epoch) << shift) | (machineID << sequenceBits)
+	base := uniqueCounter
 	atomic.StoreUint64(&timestampBase, base)
 	atomic.StoreUint64(&seqCounter, 0)
 }
 
+func generateRandomMachineID() uint64 {
+	var b [2]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		log.Fatalf("failed to seed machineID: %v", err)
+	}
+	return uint64(binary.BigEndian.Uint16(b[:]) & ((1 << machineIDBits) - 1))
+}
+
 type ID uint64
 
-func New() ID {
+func New(timestamp ...bool) ID {
+	if len(timestamp) > 0 && timestamp[0] {
+		return ID(GenerateWithTimestamp())
+	}
 	return ID(GenerateFastID())
 }
 
